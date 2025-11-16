@@ -173,12 +173,15 @@ const darkTheme = createTheme({
 });
 
 function App() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Load dark mode preference from localStorage, default to false
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
   });
-  const [showTooltip, setShowTooltip] = useState(false);
   
   useEffect(() => {
     const handleResize = () => {
@@ -191,6 +194,11 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Save dark mode preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+  }, [isDarkMode]);
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -218,19 +226,21 @@ function App() {
         }}
       >
       <IconButton
-        // onClick={toggleTheme}
+        onClick={toggleTheme}
         sx={{
           position: 'fixed',
           top: 16,
           right: 16,
           zIndex: 1000,
-            transition: 'transform 0.3s ease-in-out',
+          transition: 'transform 0.3s ease-in-out',
+          backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
           '&:hover': {
             transform: 'scale(1.2)',
+            backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
           },
         }}
       >
-        {isDarkMode ? <FaSun color="yellow" /> : <FaMoon color="black" />}
+        {isDarkMode ? <FaSun color="#FFD700" /> : <FaMoon color={isDarkMode ? "#FFFFFF" : "#000000"} />}
       </IconButton>
       </Tooltip>
       <Router>
