@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "start": "vite preview --host 0.0.0.0 --port 8080"
+    "start": "serve -s dist -l 8080"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -28,6 +28,7 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^6.22.1",
     "recharts": "^2.15.3",
+    "serve": "^14.2.5",
     "vite": "^6.3.5"
   },
   "devDependencies": {
