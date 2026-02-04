@@ -20,7 +20,6 @@ import {
 import { motion } from 'framer-motion';
 import { Indicator, Results, EvaluationState, Demographics } from '../types';
 import InfoIcon from '@mui/icons-material/Info';
-import { supabase } from '../lib/supabaseClient';
 import Footer from '../components/Footer';
 
 const gradeToScore: Record<string, [number, number]> = {
@@ -173,7 +172,7 @@ const EvaluationPage: React.FC = () => {
   const handleSubmit = async () => {
     const score = calculateCompositeScore();
   
-    // Build the payload once so it's easy to log/debug
+    // Build the payload for Azure Logic App (excludes instability_ratio)
     const payload = {
       age_range: demographics.ageRange ?? null,
       region: demographics.region ?? null,
@@ -182,41 +181,36 @@ const EvaluationPage: React.FC = () => {
       foreign_policy_rate: currentIndicators.find(i => i.id === 'foreign')?.score ?? 0,
       domestic_policy_rate: currentIndicators.find(i => i.id === 'domestic')?.score ?? 0,
       social_policy_rate: currentIndicators.find(i => i.id === 'social')?.score ?? 0,
-      instability_ratio: score
     };
   
     try {
-      const { data, error } = await supabase
-        .from('survey_responses')
-        .insert(payload)
-        .select('*')          // return the inserted row
-        .throwOnError();      // throws if Postgres returns any error
-  
-      const inserted = Array.isArray(data) ? data[0] : data; // safety
-  
-      const { data: avgData, error: avgError } = await supabase
-        .from('survey_responses')
-        .select('instability_ratio')
-        .throwOnError();
-  
-      let avgScore = 0;
-      if (avgData && avgData.length > 0) {
-        const total = avgData.reduce((sum, row) => sum + (row.instability_ratio || 0), 0);
-        avgScore = total / avgData.length;
+      const response = await fetch(
+        'https://prod-29.eastus.logic.azure.com:443/workflows/d7676124cd8a4ef684c2f9761f30c8b8/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=3rnFNN5uf-NjE4uDhUUvtggdFWrNrdPMWVh8EielA2w',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
   
       const results: Results = {
         compositeScore: score,
         label: getScoreInterpretation(score).level,
         indicators: currentIndicators,
-        communityAverages: { overall: avgScore, byAge: { '30-45': 73.5 } },
-        surveyId: inserted.id
+        communityAverages: { overall: 0, byAge: { '30-45': 73.5 } },
+        surveyId: undefined
       };
   
       navigate('/results', { state: results });
   
     } catch (err: any) {
-      console.error('Supabase insert failed:', err.message, err.details);
+      console.error('Failed to submit survey:', err.message);
       setError('Failed to save survey response. Please try again.');
     }
   };
