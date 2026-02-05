@@ -22,6 +22,7 @@ const LandingPage: React.FC = () => {
 
       /* centers the card in the viewport */
       sx={{
+        paddingTop: 3,
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',

@@ -13,14 +13,37 @@ export interface Demographics {
   region?: string;
 }
 
+export interface RegionAverage {
+  region: string;
+  avg_composite_score: number;
+}
+
+export interface AgeRangeAverage {
+  age_range: string;
+  avg_composite_score: number;
+}
+
 export interface CommunityAverages {
-  [x: string]: any;
   overall: number;
-  byAge?: Record<string, number>;
+  by_region: RegionAverage[];
+  by_age_range: AgeRangeAverage[];
+}
+
+export interface UserResult {
+  composite_score: number;
+  grade: string;
+  stability_status: string;
+}
+
+export interface ApiResponse {
+  userResult: UserResult;
+  averages: CommunityAverages;
 }
 
 export interface Results {
   compositeScore: number;
+  grade: string;
+  stabilityStatus: string;
   label: string;
   indicators: Indicator[];
   communityAverages?: CommunityAverages;

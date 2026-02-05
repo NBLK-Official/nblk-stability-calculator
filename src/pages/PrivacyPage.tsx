@@ -30,7 +30,7 @@ const PrivacyPage: React.FC = () => {
                 onClick={() => navigate(-1)}
                 sx={{ mr: 2 }}
               >
-                Back
+                
               </Button>
               <Typography variant="h4" component="h1">
                 Privacy Policy

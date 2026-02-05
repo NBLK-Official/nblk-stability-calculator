@@ -18,18 +18,14 @@ import {
   CircularProgress
 } from '@mui/material';
 import { motion, AnimatePresence, color } from 'framer-motion';
-import { Results } from '../types';
+import { Results, RegionAverage, AgeRangeAverage } from '../types';
 import {
   Twitter as TwitterIcon,
   Facebook as FacebookIcon,
   LinkedIn as LinkedInIcon,
-  Share as ShareIcon,
   Replay as ReplayIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
-import { supabase } from '../lib/supabaseClient';
-import { generatePDFReport } from '../services/pdfService';
-import { sendReportEmail } from '../services/emailService';
 import Footer from '../components/Footer';
 
 const getScoreColor = (score: number) => {
@@ -154,8 +150,12 @@ const ResultsPage: React.FC = () => {
   };
 
   const score = results.compositeScore;
+  const grade = results.grade || 'N/A';
+  const stabilityStatus = results.stabilityStatus || getStabilityText(score);
   const avgScore = results.communityAverages?.overall ? Math.round(results.communityAverages.overall) : 0;
   const maxScore = Math.max(score, avgScore, 100);
+  const byRegion = results.communityAverages?.by_region || [];
+  const byAgeRange = results.communityAverages?.by_age_range || [];
 
   const [openDialog, setOpenDialog] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '' });
@@ -170,79 +170,37 @@ const ResultsPage: React.FC = () => {
     setSuccessMessage(null);
 
     try {
-      if (!results?.surveyId) throw new Error('Survey ID not found');
-      
-      console.log('Starting form submission process...');
-      
-      let userData = {
-        firstName: form.firstName,
-        email: form.email
+      const payload = {
+        type: 'analysis_request',
+        name: form.firstName,
+        email: form.email,
+        survey_id: results?.surveyId || null,
+        composite_score: results?.compositeScore,
+        stability_status: results?.stabilityStatus,
       };
-      
-      // Attempt to update user information in database
-      try {
-        console.log('Updating user information in database...');
-        const { data, error: dbError } = await supabase
-          .from('survey_responses')
-          .update({
-            first_name: form.firstName,
-            last_name: form.lastName,
-            email: form.email
-          })
-          .eq('id', results.surveyId)
-          .select('id')
-          .maybeSingle();
 
-        if (dbError) {
-          console.warn('Database update error:', dbError);
-          // Continue with PDF generation even if database update fails
-        } else if (data) {
-          console.log('Database update successful');
-        } else {
-          console.warn('No matching database record found');
+      const response = await fetch(
+        'https://prod-29.eastus.logic.azure.com:443/workflows/d7676124cd8a4ef684c2f9761f30c8b8/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=3rnFNN5uf-NjE4uDhUUvtggdFWrNrdPMWVh8EielA2w',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         }
-      } catch (dbErr) {
-        console.warn('Database operation failed:', dbErr);
-        // Continue with PDF generation even if database update fails
+      );
+
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
       }
-      
-      console.log('Generating PDF...');
-      
-      // Generate PDF report
-      const pdfBuffer = await generatePDFReport(results, form.firstName);
-      console.log('PDF generated successfully');
 
-      // Send email with PDF attachment
-      console.log('Sending email with PDF attachment...');
-      await sendReportEmail(form.email, form.firstName, results, pdfBuffer);
-      console.log('Email sent successfully');
-
-      setSuccessMessage('Your report has been sent to your email address!\nCheck the Spam/Junk folder if it\'s not received.');
+      setSuccessMessage('Thank you! Your request has been submitted.\nWe will reach out to you with your full analysis shortly.');
       setTimeout(() => {
         setOpenDialog(false);
         setSuccessMessage(null);
-        setForm({ firstName: '', lastName: '', email: '' }); // Reset form
-      }, 10000);
+        setForm({ firstName: '', lastName: '', email: '' });
+      }, 5000);
     } catch (err: any) {
-      console.error('Error in form submission:', err);
-      let errorMessage = 'Failed to process your request. ';
-      
-      if (err.message && err.message.includes('SendGrid Error')) {
-        errorMessage += 'There was an issue sending the email. ';
-        if (err.message.includes('authentication')) {
-          errorMessage += 'Please check the SendGrid API configuration.';
-        } else if (err.message.includes('from address')) {
-          errorMessage += 'Please verify the sender email address.';
-        } else {
-          errorMessage += err.message;
-        }
-      } else if (err.message && err.message.includes('fetch')) {
-        errorMessage = 'Network error: Could not connect to the server. This might be due to CORS restrictions in development mode.';
-      } else {
-        errorMessage += err.message || 'Please try again.';
-      }
-      
-      setError(errorMessage);
+      console.error('Error submitting analysis request:', err);
+      setError('Failed to submit your request. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -255,7 +213,7 @@ const ResultsPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4, overflow: 'hidden', marginTop: -8 }}>
+    <Container maxWidth="lg" sx={{ py: 4, overflow: 'hidden', marginTop: -3 }}>
       <Box
         sx={{
           minHeight: '150vh',
@@ -290,23 +248,64 @@ const ResultsPage: React.FC = () => {
               </Typography>
 
               <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-                {getStabilityIcon(score)} {getStabilityText(score)}
+                {getStabilityIcon(score)} {stabilityStatus}
               </Typography>
+
               {/* Bar Comparison Section */}
               <Box sx={{ my: 2, width: '100%', maxWidth: 400, mx: 'auto' }}>
                 <AnimatedBar label="Your Score:" value={Math.round(score)} max={maxScore} highlight color={getScoreColor(score)} />
                 <AnimatedBar label="Average Score:" value={avgScore} max={maxScore} color={getScoreColor(avgScore)} />
               </Box>
               <Typography variant="body1" paragraph sx={{ mb: 3 }}>
-                Average Score of all Respondents: {results.communityAverages?.overall.toFixed(1)}
+                Average Score of all Respondents: {results.communityAverages?.overall?.toFixed(1) || 'N/A'}
               </Typography>
               
               <Typography variant="body1" paragraph sx={{ mb: 3 }}>
-                You rated the administration as {getStabilityText(score)}.
+                You rated the administration as <strong>{stabilityStatus}</strong>.
               </Typography>
               <Typography variant="body1" paragraph sx={{ mb: 3 }}>
                 Most users rated the administration as {getStabilityText(avgScore)}.
               </Typography>
+
+              {/* Regional Comparison */}
+              {byRegion.length > 0 && (
+                <Box sx={{ mt: 4, mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, textAlign: 'center' }}>
+                    Average Scores by Region
+                  </Typography>
+                  <Box sx={{ width: '100%', maxWidth: 400, mx: 'auto' }}>
+                    {byRegion.map((item: RegionAverage) => (
+                      <AnimatedBar 
+                        key={item.region} 
+                        label={item.region} 
+                        value={Math.round(item.avg_composite_score)} 
+                        max={100} 
+                        color={getScoreColor(item.avg_composite_score)} 
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Age Range Comparison */}
+              {byAgeRange.length > 0 && (
+                <Box sx={{ mt: 4, mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, textAlign: 'center' }}>
+                    Average Scores by Age Group
+                  </Typography>
+                  <Box sx={{ width: '100%', maxWidth: 400, mx: 'auto' }}>
+                    {byAgeRange.map((item: AgeRangeAverage) => (
+                      <AnimatedBar 
+                        key={item.age_range} 
+                        label={item.age_range} 
+                        value={Math.round(item.avg_composite_score)} 
+                        max={100} 
+                        color={getScoreColor(item.avg_composite_score)} 
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
 
               {/* Instability Score Interpretation Table (Legend)
               <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, textAlign: 'center' }}>
@@ -425,11 +424,11 @@ const ResultsPage: React.FC = () => {
               <Box sx={{ mb: 4 }}>
                   <Button variant="text" sx={{ p: 0, minWidth: 0, textTransform: 'none' }} onClick={handleDialogOpen}>
                     <span style={{ color: theme.palette.primary.main, textDecoration: 'underline', cursor: 'pointer', fontSize: '1rem' }}>
-                      For more details on the results, please click here.
+                      Want a full analysis of your results? Click here to request one.
                     </span>
                   </Button>
                   <Dialog open={openDialog} onClose={handleDialogClose}>
-                    <DialogTitle>Get Your Detailed Report</DialogTitle>
+                    <DialogTitle>Request Full Analysis</DialogTitle>
                     <form onSubmit={handleFormSubmit}>
                       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300 }}>
                         {successMessage ? (
@@ -439,15 +438,15 @@ const ResultsPage: React.FC = () => {
                         ) : (
                           <>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              Get a detailed PDF report with your stability score analysis, including:
+                              Request a comprehensive analysis of your stability score. Our team will review your results and reach out to you with:
                             </Typography>
                             <ul style={{ marginTop: 0, marginBottom: 16, paddingLeft: 36, color: theme.palette.text.secondary }}>
-                              <li>Your exact score and grade</li>
-                              <li>What it means for political stability</li>
-                              <li>How your view compares to others</li>
+                              <li>In-depth breakdown of your score</li>
+                              <li>Detailed insights on political stability trends</li>
+                              <li>Personalized analysis based on your responses</li>
                             </ul>
                             <TextField
-                              label="Preferred Name"
+                              label="Your Name"
                               name="firstName"
                               value={form.firstName}
                               onChange={handleFormChange}
@@ -463,7 +462,7 @@ const ResultsPage: React.FC = () => {
                               onChange={handleFormChange}
                               required
                               fullWidth
-                              helperText="We'll send your report to this email"
+                              helperText="We'll reach out to you at this email"
                               disabled={isLoading}
                             />
                             {error && (
@@ -482,10 +481,10 @@ const ResultsPage: React.FC = () => {
                           <Button 
                             type="submit" 
                             variant="contained"
-                            startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <ShareIcon />}
+                            startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
                             disabled={isLoading}
                           >
-                            {isLoading ? 'Sending...' : 'Get My Report'}
+                            {isLoading ? 'Submitting...' : 'Request Analysis'}
                           </Button>
                         )}
                       </DialogActions>

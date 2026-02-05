@@ -30,7 +30,7 @@ const AboutPage: React.FC = () => {
                 onClick={() => navigate(-1)}
                 sx={{ mr: 2 }}
               >
-                Back
+                
               </Button>
               <Typography variant="h4" component="h1">
                 About
@@ -51,9 +51,7 @@ const AboutPage: React.FC = () => {
 
             <Box sx={{ my: 3, textAlign: 'center' }}>
               <Link
-                href="https://nblk.typeform.com/to/B8Yc9cfH"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="mailto:info@nblkconsulting.com"
                 sx={{
                   display: 'inline-block',
                   px: 3,

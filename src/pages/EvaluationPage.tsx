@@ -16,9 +16,10 @@ import {
   IconButton,
   Tooltip,
   Popover,
+  CircularProgress,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { Indicator, Results, EvaluationState, Demographics } from '../types';
+import { Indicator, Results, EvaluationState, Demographics, ApiResponse } from '../types';
 import InfoIcon from '@mui/icons-material/Info';
 import Footer from '../components/Footer';
 
@@ -109,6 +110,7 @@ const indicatorIds = initialIndicators.map(i => i.id);
 const EvaluationPage: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [indicators, setIndicators] = useState<Indicator[]>(initialIndicators);
   const [demographics, setDemographics] = useState<EvaluationState['demographics']>({});
   const [currentIndicators, setCurrentIndicators] = useState<Indicator[]>(indicators);
@@ -170,7 +172,8 @@ const EvaluationPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    const score = calculateCompositeScore();
+    setIsSubmitting(true);
+    setError(null);
   
     // Build the payload for Azure Logic App (excludes instability_ratio)
     const payload = {
@@ -198,13 +201,34 @@ const EvaluationPage: React.FC = () => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      // Parse the response from Azure Logic App
+      const apiResponse = await response.json();
+      
+      // Extract user result from body.ResultSets.Table1[0]
+      const userResult = apiResponse.body?.ResultSets?.Table1?.[0];
+      
+      if (!userResult) {
+        throw new Error('Invalid response: user result not found');
+      }
+
+      // Extract averages if available (from Table2 or separate fields)
+      const averagesData = apiResponse.body?.ResultSets?.Table2?.[0];
+      const byRegion = apiResponse.body?.ResultSets?.Table3 || [];
+      const byAgeRange = apiResponse.body?.ResultSets?.Table4 || [];
   
       const results: Results = {
-        compositeScore: score,
-        label: getScoreInterpretation(score).level,
+        compositeScore: userResult.composite_score,
+        grade: userResult.grade,
+        stabilityStatus: userResult.stability_status,
+        label: userResult.stability_status,
         indicators: currentIndicators,
-        communityAverages: { overall: 0, byAge: { '30-45': 73.5 } },
-        surveyId: undefined
+        communityAverages: {
+          overall: 39, // Hardcoded for now
+          by_region: byRegion,
+          by_age_range: byAgeRange,
+        },
+        surveyId: userResult.id?.toString()
       };
   
       navigate('/results', { state: results });
@@ -212,6 +236,8 @@ const EvaluationPage: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to submit survey:', err.message);
       setError('Failed to save survey response. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -268,8 +294,8 @@ const EvaluationPage: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ overflowX: 'hidden' }}>
-      <Box sx={{ py: 4 }}>
-        <Typography variant="h4" gutterBottom align="center">
+      <Box sx={{ py: 4, paddingTop: 6 }}>
+        <Typography variant="h2" gutterBottom align="center">
           How Stable Do You Think Things Are?
         </Typography>
 
@@ -422,9 +448,11 @@ const EvaluationPage: React.FC = () => {
             variant="contained"
             size="large"
             onClick={handleSubmit}
+            disabled={isSubmitting}
             sx={{ px: 4, py: 2 }}
+            startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
           >
-            Submit Evaluation
+            {isSubmitting ? 'Submitting...' : 'Submit Evaluation'}
           </Button>
         </Box>
 
