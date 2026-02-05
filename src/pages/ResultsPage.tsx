@@ -171,12 +171,9 @@ const ResultsPage: React.FC = () => {
 
     try {
       const payload = {
-        type: 'analysis_request',
+        type: 'dataset_request',
         name: form.firstName,
         email: form.email,
-        survey_id: results?.surveyId || null,
-        composite_score: results?.compositeScore,
-        stability_status: results?.stabilityStatus,
       };
 
       const response = await fetch(
@@ -192,7 +189,7 @@ const ResultsPage: React.FC = () => {
         throw new Error(`Request failed: ${response.status}`);
       }
 
-      setSuccessMessage('Thank you! Your request has been submitted.\nWe will reach out to you with your full analysis shortly.');
+      setSuccessMessage('Thank you! Your request has been submitted.\nWe will reach out to you with the dataset shortly.');
       setTimeout(() => {
         setOpenDialog(false);
         setSuccessMessage(null);
@@ -424,11 +421,11 @@ const ResultsPage: React.FC = () => {
               <Box sx={{ mb: 4 }}>
                   <Button variant="text" sx={{ p: 0, minWidth: 0, textTransform: 'none' }} onClick={handleDialogOpen}>
                     <span style={{ color: theme.palette.primary.main, textDecoration: 'underline', cursor: 'pointer', fontSize: '1rem' }}>
-                      Want a full analysis of your results? Click here to request one.
+                      Want to get the full dataset of all entries? Click here to request one.
                     </span>
                   </Button>
                   <Dialog open={openDialog} onClose={handleDialogClose}>
-                    <DialogTitle>Request Full Analysis</DialogTitle>
+                    <DialogTitle>Request Dataset </DialogTitle>
                     <form onSubmit={handleFormSubmit}>
                       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300 }}>
                         {successMessage ? (
@@ -438,12 +435,12 @@ const ResultsPage: React.FC = () => {
                         ) : (
                           <>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              Request a comprehensive analysis of your stability score. Our team will review your results and reach out to you with:
+                              Request access to the full dataset of survey entries or a comparative analysis report. We'll reach out to you with:
                             </Typography>
                             <ul style={{ marginTop: 0, marginBottom: 16, paddingLeft: 36, color: theme.palette.text.secondary }}>
-                              <li>In-depth breakdown of your score</li>
-                              <li>Detailed insights on political stability trends</li>
-                              <li>Personalized analysis based on your responses</li>
+                              <li>Full dataset of all anonymized survey responses</li>
+                              <li>Comparative analysis across all entries</li>
+                              
                             </ul>
                             <TextField
                               label="Your Name"
@@ -462,7 +459,7 @@ const ResultsPage: React.FC = () => {
                               onChange={handleFormChange}
                               required
                               fullWidth
-                              helperText="We'll reach out to you at this email"
+                              helperText="We'll send the dataset or analysis to this email"
                               disabled={isLoading}
                             />
                             {error && (
@@ -484,7 +481,7 @@ const ResultsPage: React.FC = () => {
                             startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
                             disabled={isLoading}
                           >
-                            {isLoading ? 'Submitting...' : 'Request Analysis'}
+                            {isLoading ? 'Submitting...' : 'Submit Request'}
                           </Button>
                         )}
                       </DialogActions>
